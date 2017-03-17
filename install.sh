@@ -2,12 +2,13 @@
 
 SKIP_RC=0
 BATCH_INSTALL=0
+VERBOSE=0
 
 THIS_DIR=$(cd $(dirname $0); pwd)
 PREFIX=${PREFIX:-"${THIS_DIR}/install"}
 TORCH_LUA_VERSION=${TORCH_LUA_VERSION:-"LUAJIT21"} # by default install LUAJIT21
 
-while getopts 'bsh:' x; do
+while getopts 'vbshp:' x; do
     case "$x" in
         h)
             echo "usage: $0
@@ -15,6 +16,13 @@ This script will install Torch and related, useful packages into $PREFIX.
 
     -b      Run without requesting any user input (will automatically add PATH to shell profile)
     -s      Skip adding the PATH to shell profile
+    -p <prefix> Install prefix
+    -v      Run verbosely
+    
+    Environment variables:
+    
+    PREFIX - alternative way to specify install prefix, default: <current directory>/install
+    TORCH_CUDA_ARCH_LIST - CUDA architectures,  default: determined outomatically, possible values: 3.0;3.5;5.0;5.2+PTX;6.0;6.2 - can be combined by semicolon
 "
             exit 2
             ;;
@@ -24,9 +32,15 @@ This script will install Torch and related, useful packages into $PREFIX.
         s)
             SKIP_RC=1
             ;;
+        p)  PREFIX=$OPTARG
+            SKIP_RC=1
+            ;;
+        v)  VERBOSE=2
+            ;;
     esac
 done
 
+export CMAKE_LIBRARY_PATH=${PREFIX:-"${THIS_DIR}/install"}:${CMAKE_LIBRARY_PATH}
 
 # Scrub an anaconda/conda install, if exists, from the PATH.
 # It has a malformed MKL library (as of 1/17/2015)
@@ -38,9 +52,18 @@ fi
 echo "Prefix set to $PREFIX"
 
 if [[ `uname` == 'Linux' ]]; then
+    if [ -d /opt/OpenBLAS ];then
     export CMAKE_LIBRARY_PATH=/opt/OpenBLAS/include:/opt/OpenBLAS/lib:$CMAKE_LIBRARY_PATH
+    fi
 fi
-export CMAKE_PREFIX_PATH=$PREFIX
+
+if [ ! -z $BLAS ];then
+  echo Using BLAS in $(dirname $BLAS)
+  export CMAKE_LIBRARY_PATH=$(dirname $BLAS):$(dirname $BLAS)/../include:$CMAKE_LIBRARY_PATH
+fi
+
+export CMAKE_PREFIX_PATH=$PREFIX:$CMAKE_LIBRARY_PATH
+
 
 git submodule update --init --recursive
 
